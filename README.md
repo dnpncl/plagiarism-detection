@@ -30,7 +30,7 @@ Filtered out the columns that weren't of use and further reduced the set to 40 d
 * I managed to get a nice data set of scientific papers and import them in a easy-to-work-with format.
 * Tokenized the texts in the data set using SpaCy
 * Removed stopwords from the text using NLTK
-* Tried to vectorize the token sets using tf-idf and compare vectors using Jaccard similarity, but couldn't test that because of memory errors.
+* Tried to vectorize the token sets using tf-idf and compare vectors using Jaccard similarity, but couldn't test that because of memory errors I had no time to fix.
 ## What still needs to be done
 * Optimization of the tokenization and vectorization methods
 * Finding a method of determining if two vectors are similar above a certain degree and mark them accordingly. Try if using Jaccard or Cosine similarity can help.
