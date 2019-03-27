@@ -15,14 +15,15 @@ spacy_nlp = spacy.load('en_core_web_sm')
 # a set of plagiarized articles and the originals for ML training
 trainSet = pd.read_csv('../data_sets/test.csv').apply(lambda x: x.astype(str).str.lower())
 
+# the set needs to be in a single column 
+# in order to vectorize based on the whole corpus
 vectorizationSet = pd.DataFrame(columns=['Text'])
 for i in trainSet.Source:
   vectorizationSet = vectorizationSet.append({'Text': i}, ignore_index=True)
 for i in trainSet.Suspicious:
     vectorizationSet = vectorizationSet.append({'Text': i}, ignore_index=True)
 
-
-# function for tokenization and removing stopwords
+# function for tokenization, lemmatization and removing stopwords
 def tokenize(article):
   doc = spacy_nlp(article)
   lemmatized = ' '.join([token.lemma_ for token in doc])
@@ -36,12 +37,15 @@ def tokenize(article):
 
   return stopFree
 
+# basic jaccard similarity
 def getJaccardSim(str1, str2): 
     a = set(str1.split()) 
     b = set(str2.split())
     c = a.intersection(b)
     return float(len(c)) / (len(a) + len(b) - len(c))
 
+# pairing up cosine and jaccard similarities in a 2xN matrix
+# and creating the 1xN label vector for the SGDClassifier
 def pairUpCosJacc(matrix):
   res = []
   labels = []
@@ -74,15 +78,16 @@ vectorizer = TfidfVectorizer()
 tfidfMatrix = vectorizer.fit_transform(vectorizationSet.Text)
 
 pairs, labels = pairUpCosJacc(tfidfMatrix)
-print(pairs)
-print(labels)
 
+# split the matrices into train and test sets
 X_train, X_test, y_train, y_test = train_test_split(pairs, labels, test_size=0.33, random_state=42)
-print(y_test)
 
+# train the classifier
 clf = SGDClassifier(max_iter=1000, tol=1e-3)
 clf.fit(X_train, y_train)
-prediction = clf.predict(X_test)
-print(prediction)
 
+#make a prediction
+prediction = clf.predict(X_test)
+
+# compare the prediction to the test albel vector
 print(accuracy_score(prediction, y_test))
