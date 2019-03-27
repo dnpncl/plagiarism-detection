@@ -2,40 +2,87 @@ import pandas as pd
 import spacy
 from nltk.corpus import stopwords
 from sklearn.feature_extraction.text import TfidfVectorizer
+from spacy.lemmatizer import Lemmatizer
+from spacy.lang.en import LEMMA_INDEX, LEMMA_EXC, LEMMA_RULES
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.metrics import jaccard_similarity_score
+from sklearn.linear_model import SGDClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
 
 spacy_nlp = spacy.load('en_core_web_sm')
 
-# read the data set in a nice format
-dtSet = pd.read_csv('Papers.csv').apply(lambda x: x.astype(str).str.lower())
-# reduce the data set to 40 texts with just two columns
-restrictedSet = dtSet.filter(['Title', 'PaperText'])[:40]
+# a set of plagiarized articles and the originals for ML training
+trainSet = pd.read_csv('../data_sets/test.csv').apply(lambda x: x.astype(str).str.lower())
+
+vectorizationSet = pd.DataFrame(columns=['Text'])
+for i in trainSet.Source:
+  vectorizationSet = vectorizationSet.append({'Text': i}, ignore_index=True)
+for i in trainSet.Suspicious:
+    vectorizationSet = vectorizationSet.append({'Text': i}, ignore_index=True)
+
 
 # function for tokenization and removing stopwords
 def tokenize(article):
   doc = spacy_nlp(article)
-  tokens = [token.text for token in doc]
+  lemmatized = ' '.join([token.lemma_ for token in doc])
+  tokens = [token.text for token in spacy_nlp(lemmatized)]
   # remove stopwords
   stopWords = set(stopwords.words('english'))
   stopFree = [] 
   for w in tokens:
       if w not in stopWords:
           stopFree.append(w)
+
   return stopFree
 
-# turn the texts into sets of tokens
+def getJaccardSim(str1, str2): 
+    a = set(str1.split()) 
+    b = set(str2.split())
+    c = a.intersection(b)
+    return float(len(c)) / (len(a) + len(b) - len(c))
 
-tokenizedFrame = pd.DataFrame(columns=['Title', 'PaperTokenized'])
-for row in restrictedSet.itertuples():
-  token = tokenize(row.PaperText)
-  tokenFrame = pd.DataFrame([[row.Title, token]], columns=['Title', 'PaperTokenized'])
-  tokenizedFrame = tokenizedFrame.append(tokenFrame)
+def pairUpCosJacc(matrix):
+  res = []
+  labels = []
+  skipRange = len(trainSet.Source)
+  #pair up actual source articles and their plagiates
+  for i in range(skipRange):
+    cos = cosine_similarity(matrix[i:i+1], matrix[i+skipRange:i+skipRange+1])
+    jacc = getJaccardSim(trainSet.Source[i], trainSet.Suspicious[i])
+    res.append([cos[0][0], jacc])
+    labels.append(1)
+  #pair up unplagiarized pairs
+  for i in range(skipRange):
+    if i==0:
+      cos = cosine_similarity(matrix[i:i+1], matrix[2*skipRange-i-1:2*skipRange-i])
+      jacc = getJaccardSim(trainSet.Source[i], trainSet.Suspicious[skipRange-1])
+    else:
+      cos = cosine_similarity(matrix[i:i+1], matrix[i+skipRange-1:i+skipRange])
+      jacc = getJaccardSim(trainSet.Source[i], trainSet.Suspicious[i-1])
+    res.append([cos[0][0], jacc])
+    labels.append(0)
+  return res, labels
 
+# the scikit vectorizer creates vectors from the texts using the tokenize() function
 tfidf = TfidfVectorizer(
-    analyzer='word',
-    tokenizer=tokenize,
-    preprocessor=tokenize,
-    token_pattern=None)  
+    analyzer = 'word',
+    tokenizer = tokenize,
+    token_pattern = None)  
 
-tfidf.fit(tokenizedFrame['PaperTokenized'])
+vectorizer = TfidfVectorizer()
+tfidfMatrix = vectorizer.fit_transform(vectorizationSet.Text)
 
-#TODO: train neural network to find similar texts (above 50% similarity)
+pairs, labels = pairUpCosJacc(tfidfMatrix)
+print(pairs)
+print(labels)
+
+X_train, X_test, y_train, y_test = train_test_split(pairs, labels, test_size=0.33, random_state=42)
+print(y_test)
+
+clf = SGDClassifier(max_iter=1000, tol=1e-3)
+clf.fit(X_train, y_train)
+prediction = clf.predict(X_test)
+print(prediction)
+
+print(accuracy_score(prediction, y_test))
