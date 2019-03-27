@@ -5,7 +5,6 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from spacy.lemmatizer import Lemmatizer
 from spacy.lang.en import LEMMA_INDEX, LEMMA_EXC, LEMMA_RULES
 from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.metrics import jaccard_similarity_score
 from sklearn.linear_model import SGDClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
